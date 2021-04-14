@@ -269,6 +269,7 @@
                 let errorFlag = false;
                 let nameRegex = /^[A-Za-z][A-Za-z]*[\sA-Za-z]*$/;
                 let emailRegex = /^([\w-\.]+)@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.)|(([\w-]+\.)+))([a-zA-Z]{2,4}|[0-9]{1,3})(\]?)$/;
+                let passwordRegix = /^(?=(.*[a-zA-Z].*){2,})(?=.*\d.*)(?=.*\W.*)[a-zA-Z0-9\S]{8,}$/;
 
                 let user = {
                     name: this.$el.find('input[name="name"]').val(),
@@ -302,9 +303,9 @@
                     }
                 }
 
-                if (user.password.length > 0 && user.password.length < 8) {
-                    errorFlag = true;
-                    this.$el.find('input[name="password"]').parent().append("<span class='wizard-form-notice'>The password is too short: it must at least 8 characters.</span>")
+                if (user.password.length > 0 && (!passwordRegix.test(user.password))) {
+                        errorFlag = true;
+                        this.$el.find('input[name="password"]').parent().append("<span class='wizard-form-notice'>Password must contain minimum 8 character length, at least two letters (not case sensitive), one number, one special character(space is not allowed).</span>")
                 }
 
                 if (user.confirmPassword.length > 0 && user.confirmPassword != user.password) {
@@ -455,6 +456,15 @@
                 'php-extensions': {
                     extensions: [],
                 },
+                'php-maximum-execution': {
+                    status: undefined,
+                },
+                'php-envfile-permission': {
+                    status: undefined,
+                },
+                'php-configfiles-permission': {
+                    configfiles: [],
+                }
             },
             initialize: function (attributes) {
                 this.view = attributes.view;
@@ -464,6 +474,9 @@
 
                 this.checkPHP();
                 this.evaluatePHPExtensions();
+                this.maximumExecution();
+                this.checkEnvFilePermission();
+                this.checkConfigFilesPermission();
             },
             isProcedureCompleted: function (callback) {
                 if (this.get('verified')) {
@@ -508,9 +521,84 @@
                     this.evaluateOverallRequirements();
                 });
             },
+            maximumExecution: function() {
+                let postData = {
+                    specification: 'php-maximum-execution',
+                };
+
+                $.post('./wizard/xhr/check-requirements', postData, response => {
+                    this.set('php-maximum-execution', response);
+                }).fail((jqXHR, textStatus, errorThrown) => {
+                    this.set('php-maximum-execution', {
+                        status: false,
+                        message: ERRORS.hasOwnProperty('error' + jqXHR.status) ? ERRORS['error' + jqXHR.status].title : 'An unexpected error occurred during the Maximum execution time verification process',
+                        description: ERRORS.hasOwnProperty('error' + jqXHR.status) ? ERRORS['error' + jqXHR.status].description : 'Maximum Execution Time  </span><p>Need to resolve this issue can be done by reading this blog link:<a href="https: //www.simplified.guide/php/increase-max-execution-time" target="_blank">How to resolve PHP mailparse extension</a></p>',
+                    });
+                }).always(() => {
+                    this.view.renderPHPmaximumexecution();
+                    this.evaluateOverallRequirements();
+                });
+            },
+            checkEnvFilePermission: function() {
+                let postData = {
+                    specification: 'php-envfile-permission',
+                };
+
+                $.post('./wizard/xhr/check-requirements', postData, response => {
+                    this.set('php-envfile-permission', response);
+                }).fail((jqXHR, textStatus, errorThrown) => {
+
+                    this.set('php-envfile-permission', {
+                        status: false,
+                        message: ERRORS.hasOwnProperty('error' + jqXHR.status) ? ERRORS['error' + jqXHR.status].title : 'An unexpected error occurred during the PHP version verification process',
+                        description: ERRORS.hasOwnProperty('error' + jqXHR.status) ? ERRORS['error' + jqXHR.status].description : 'Not details Available',
+                    });
+                }).always(() => {
+                    this.view.renderEnvFilePermission();
+                    this.evaluateOverallRequirements();
+                });
+            },
+            checkConfigFilesPermission: function() {
+                let postData = {
+                    specification: 'php-configfiles-permission',
+                };
+
+                $.post('./wizard/xhr/check-requirements', postData, response => {
+                    this.set('php-configfiles-permission', response);
+                }).fail((jqXHR, textStatus, errorThrown) => {
+
+                    this.set('php-configfiles-permission', {
+                        status: false,
+                        message: ERRORS.hasOwnProperty('error' + jqXHR.status) ? ERRORS['error' + jqXHR.status].title : 'An unexpected error occurred during the PHP version verification process',
+                        description: ERRORS.hasOwnProperty('error' + jqXHR.status) ? ERRORS['error' + jqXHR.status].description : 'Not details Available',
+                    });
+                }).always(() => {
+                    this.view.renderConfigFilesPermission();
+                    this.evaluateOverallRequirements();
+                });
+            },
             evaluateOverallRequirements: function() {
                 if (false == this.get('php-version').status) {
                     this.set('verified', false);
+                }  else if (false == this.get('php-maximum-execution').status) {
+                    this.set('verified', false);
+                } else if (false == this.get('php-envfile-permission').status) {
+                    this.set('verified', false);
+                } else if (this.get('php-configfiles-permission').hasOwnProperty('configfiles')) {
+                    let configfiles = this.get('php-configfiles-permission').configfiles;
+
+                    let isconfigfilesError;
+                    configfiles.forEach(configfiles => {
+                        let currentconfigfileName = Object.keys(configfiles)[0];
+                        if (!configfiles[currentconfigfileName]) {
+                            isconfigfilesError = true;
+                            this.set('verified', false);
+                        }
+                    });
+
+                    if (!isconfigfilesError) {
+                        this.set('verified', true);
+                    }
                 } else if (this.get('php-extensions').hasOwnProperty('extensions')) {
                     let extensions = this.get('php-extensions').extensions;
 
@@ -543,7 +631,7 @@
             model: undefined,
             wizard: undefined,
             events: {
-                "click .PHPExtensions-toggle-details, .PHPVersion-toggle-details": function (e) {
+                "click .PHPExtensions-toggle-details, .PHPVersion-toggle-details, .PHPPermissionEnvfile-toggle-details, .PHPExeTime-toggle-details, .PHPPermissionConfigfiles-toggle-details": function (e) {
                     // show and hide extension details
                     const currentElement = Backbone.$(e.currentTarget)
                     currentElement.parents('[class*="info-container"]').siblings('.systemCriteria-Details').toggle();
@@ -558,6 +646,9 @@
             reference_nodes: {
                 version: undefined,
                 extension: undefined,
+                execution: undefined,
+                permission: undefined,
+                Configfiles: undefined,
             },
             wizard_icons_loader_template: _.template($("#wizardIcons-LoaderTemplate").html()),
             wizard_icons_success_template: _.template($("#wizardIcons-SuccessTemplate").html()),
@@ -565,6 +656,9 @@
             wizard_system_requirements_template: _.template($("#installationWizard-SystemRequirementsTemplate").html()),
             wizard_system_requirements_php_ver_template: _.template($("#installationWizard-SystemRequirementsTemplate-PHPVersion").html()),
             wizard_system_requirements_php_ext_template: _.template($("#installationWizard-SystemRequirementsTemplate-PHPExtensions").html()),
+            wizard_system_requirements_php_exe_template: _.template($("#installationWizard-SystemRequirementsTemplate-PHPExecution").html()),
+            wizard_system_requirements_php_env_template: _.template($("#installationWizard-SystemRequirementsTemplate-PHPPermission").html()),
+            wizard_system_requirements_php_config_template: _.template($("#installationWizard-SystemRequirementsTemplate-PHPPermissionConfigfiles").html()),
             initialize: function(params) {
                 this.wizard = params.wizard;
                 this.model = new UVDeskCommunitySystemRequirementsModel({ view: this });
@@ -575,9 +669,18 @@
                 // Set reference nodes
                 this.reference_nodes.version = this.$el.find('#systemCriteria-PHPVersion');
                 this.reference_nodes.extension = this.$el.find('#systemCriteria-PHPExtensions');
+
+                this.reference_nodes.execution = this.$el.find('#systemCriteria-PHPExecution');
+                this.reference_nodes.permission = this.$el.find('#systemCriteria-PHPPermission');
                 
+                this.reference_nodes.Configfiles = this.$el.find('#systemCriteria-PHPPermissionConfigfiles');
+
                 this.renderPHPVersion('verifying');
                 this.renderPHPExtensionsCriteria('verifying');
+
+                this.renderPHPmaximumexecution('verifying');
+                this.renderEnvFilePermission('verifying');
+                this.renderConfigFilesPermission('verifying');
 
                 this.model.fetch();
             },
@@ -623,10 +726,10 @@
                         } else {
                             var currentExtensionIconStatus = this.wizard_icons_notice_template();
                             if (currentExtensionName == 'imap'){
-                                var currentExtensionTextStatus = "<span class='extension_name'> PHP " + currentExtensionName + " extension </span><p>Need to resolve this issue can be done by reading this blog link:<a style='text-decoration:none;' href='https://www.php.net/manual/en/imap.setup.php' target='_blank'> How to resolve PHP imap extension</a></p>";
+                                var currentExtensionTextStatus = "<span class='extension_name'> PHP " + currentExtensionName + " extension </span><p>Need to resolve this issue can be done by reading this blog link:<a href='https://www.php.net/manual/en/imap.setup.php' target='_blank'>How to resolve PHP imap extension</a></p>";
                             }
                             else if(currentExtensionName == 'mailparse'){
-                                var currentExtensionTextStatus = "<span class='extension_name'> PHP " + currentExtensionName + " extension </span><p>Need to resolve this issue can be done by reading this blog link:<a style='text-decoration:none;' href='https://www.php.net/manual/en/book.mailparse.php' target='_blank'> How to resolve PHP mailparse extension</a></p>";
+                                var currentExtensionTextStatus = "<span class='extension_name'> PHP " + currentExtensionName + " extension </span><p>Need to resolve this issue can be done by reading this blog link:<a href='https://www.php.net/manual/en/book.mailparse.php' target='_blank'>How to resolve PHP mailparse extension</a></p>";
                             }
                             else{
                                 var currentExtensionTextStatus = "<span class='extension_name'>" + currentExtensionName + "extension is currently inactive</span>";
@@ -653,7 +756,101 @@
                     this.reference_nodes.extension.find('#systemCriteria-PHPExtensions-Details').html(this.model.get('php-extensions').description);
                     this.reference_nodes.extension.find('#systemCriteria-PHPExtensions-Details').addClass('systemCriteria-Info-Message');
                 }
-            }
+            },
+            renderPHPmaximumexecution: function(status) {
+                debugger
+                this.reference_nodes.execution.html(this.wizard_system_requirements_php_exe_template(this.model.get('php-maximum-execution')));
+                this.reference_nodes.execution.find('.PHPExeTime-toggle-details').hide();
+                if (false == this.model.get('fetch')) {
+                    this.reference_nodes.execution.find('.wizard-svg-icon-execution-criteria-checklist').html(this.wizard_icons_loader_template());
+                    this.reference_nodes.execution.find('label').html('Checking maximum execution time');
+                } else {
+                    if (true === this.model.get('php-maximum-execution').status) {
+                        this.reference_nodes.execution.find('.wizard-svg-icon-execution-criteria-checklist').html(this.wizard_icons_success_template());
+                        this.reference_nodes.execution.find('label').html(this.model.get('php-maximum-execution').message);
+                    } else {
+                        this.reference_nodes.execution.find('.wizard-svg-icon-execution-criteria-checklist').html(this.wizard_icons_notice_template());
+                        this.reference_nodes.execution.find('label').html(this.model.get('php-maximum-execution').message);
+                        if (this.model.get('php-maximum-execution').hasOwnProperty('description')) {
+                            this.reference_nodes.execution.find('.PHPExeTime-toggle-details').show();
+                        }
+                        this.reference_nodes.execution.find('.systemCriteria-Details').addClass('systemCriteria-Info-Message');
+                        this.reference_nodes.execution.find('#systemCriteria-PHPExecution-Details').html(this.model.get('php-maximum-execution').description);
+                    }
+                }
+            },
+            renderEnvFilePermission: function(status) {
+                this.reference_nodes.permission.html(this.wizard_system_requirements_php_env_template(this.model.get('php-envfile-permission')));
+                this.reference_nodes.permission.find('.PHPPermissionEnvfile-toggle-details').hide();
+
+                if (false == this.model.get('fetch')) {
+                    this.reference_nodes.permission.find('.wizard-svg-icon-permissionEnvfile-criteria-checklist').html(this.wizard_icons_loader_template());
+                    this.reference_nodes.permission.find('label').html('Checking currently enabled .env file');
+                } else {
+                    if (true === this.model.get('php-envfile-permission').status) {
+                        this.reference_nodes.permission.find('.wizard-svg-icon-permissionEnvfile-criteria-checklist').html(this.wizard_icons_success_template());
+                        this.reference_nodes.permission.find('label').html(this.model.get('php-envfile-permission').message);
+                    } else {
+                        this.reference_nodes.permission.find('.wizard-svg-icon-permissionEnvfile-criteria-checklist').html(this.wizard_icons_notice_template());
+                        this.reference_nodes.permission.find('label').html(this.model.get('php-envfile-permission').message);
+                        if (this.model.get('php-envfile-permission').hasOwnProperty('description')) {
+                            this.reference_nodes.permission.find('.PHPPermissionEnvfile-toggle-details').show();
+                        }
+                        this.reference_nodes.permission.find('.systemCriteria-Details').addClass('systemCriteria-Info-Message');
+                        this.reference_nodes.permission.find('#systemCriteria-PHPPermission-Details').html(this.model.get('php-envfile-permission').description);
+                    }
+                }
+            },
+            renderConfigFilesPermission: function(status) {
+                this.reference_nodes.Configfiles.html(this.wizard_system_requirements_php_config_template(this.model.get('php-configfiles-permission')));
+                this.reference_nodes.Configfiles.find('.PHPPermissionConfigfiles-error-message').hide();
+                if (false == this.model.get('fetch')) {
+                    this.reference_nodes.Configfiles.find('.wizard-svg-icon-permissionConfigfiles-criteria-checklist').html(this.wizard_icons_loader_template());
+                    this.reference_nodes.Configfiles.find('label').html('Checking currently enabled Config-files');
+                } else if (this.model.get('php-configfiles-permission').hasOwnProperty('configfiles')) {
+                    var activeconfigfileCount = 0;
+                    var configfileCount = this.model.get('php-configfiles-permission').configfiles.length;
+                    // count the active extensions and set each extension with it's status in the extension list
+                    this.model.get('php-configfiles-permission').configfiles.forEach(configfile => {
+                        let currentconfigfileName = Object.keys(configfile)[0];
+                        let currentconfigfileTemplateInfo = this.reference_nodes.Configfiles.find('#' + currentconfigfileName + '-info');
+                        if (configfile[currentconfigfileName]) {
+                            activeconfigfileCount++;
+                            var currentconfigfileIconStatus = this.wizard_icons_success_template();
+                            var currentconfigfileTextStatus = "<span class='configfiles_name'>" + currentconfigfileName + ".yaml </span> read/write file permission is enabled.";
+                        } else {
+                            var currentconfigfileIconStatus = this.wizard_icons_notice_template();
+                            if (currentconfigfileName == 'uvdesk') {
+                                var currentconfigfileTextStatus = "<span class='configfiles_name'> " + currentconfigfileName + ".yaml  read/write file permission is disabled </span>";
+                            } else if (currentconfigfileName == 'swiftmailer') {
+                                var currentconfigfileTextStatus = "<span class='configfiles_name'> " + currentconfigfileName + ".yaml  read/write file permission is disabled </span>";
+                            } else {
+                                var currentconfigfileTextStatus = "<span class='configfiles_name'>" + currentconfigfileName + ".yaml  read/write file permission is disabled </span>";
+                            }
+                            this.reference_nodes.Configfiles.find('.PHPPermissionConfigfiles-error-message').show();
+                            this.reference_nodes.Configfiles.find('.PHPPermissionConfigfiles-error-message').html(this.model.get('php-configfiles-permission').description)
+                        }
+
+                        currentconfigfileTemplateInfo.find('.wizard-svg-icon-criteria-checklist').html(currentconfigfileIconStatus);
+                        currentconfigfileTemplateInfo.find('label').html(currentconfigfileTextStatus);
+                    });
+                    // set overall response with the count of active extensions
+                   let configfile_info = this.$el.find('#systemCriteria-PHPPermissionConfigfiles');
+                   if (activeconfigfileCount < configfileCount) {
+                       var overallconfigfileStatus = this.wizard_icons_notice_template();
+                   } else {
+                       var overallconfigfileStatus = this.wizard_icons_success_template();
+                   }
+
+                   configfile_info.find('.wizard-svg-icon-permissionConfigfiles-criteria-checklist').html(overallconfigfileStatus);
+                   configfile_info.find('.permissionConfigfiles-criteria-label').html("You meet " + activeconfigfileCount + " out of " + configfileCount + " config files permission.");
+               } else {
+                   this.reference_nodes.configfiles.find('.wizard-svg-icon-permissionConfigfiles-criteria-checklist').html(this.wizard_icons_notice_template());
+                   this.reference_nodes.configfiles.find('.permissionConfigfiles-criteria-label').html(this.model.get('php-configfiles-permission').message);
+                   this.reference_nodes.configfiles.find('#systemCriteria-PHPPermissionConfigfiles-Details').html(this.model.get('php-configfiles-permission').description);
+                   this.reference_nodes.configfiles.find('#systemCriteria-PHPPermissionConfigfiles-Details').addClass('systemCriteria-Info-Message');
+               }
+           }
         });
 
         var UVDeskCommunityInstallationWizardView = Backbone.View.extend({

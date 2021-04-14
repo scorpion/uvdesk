@@ -9,6 +9,8 @@
     <a href="#backers"><img src="https://opencollective.com/uvdesk/backers/badge.svg" alt="Backers on Open Collective"></a>
     <a href="#sponsors"><img src="https://opencollective.com/uvdesk/sponsors/badge.svg" alt="Sponsors on Open Collective"></a>
     <a href="https://gitter.im/uvdesk/community"><img src="https://badges.gitter.im/uvdesk/community-skeleton.svg" alt="connect on gitter"></a>
+    <a href="https://forums.uvdesk.com"><img src="https://img.shields.io/badge/Ask%20me-anything-1abc9c.svg" alt="discuss on uvdesk forum"></a>
+    <a href="https://github.com/collections/made-in-india"><img src="https://badges.frapsoft.com/os/v3/open-source.png?v=103" alt="Checkout us on open source projects from India"></a>
 </p>
 
 [Uvdesk community helpdesk][1] project skeleton packaged along with the bare essential utilities and tools to build and customize your own helpdesk solutions.
@@ -95,10 +97,10 @@ Requirements
 * **OS**: Ubuntu 16.04 LTS or higher / Windows 7 or Higher (WAMP / XAMPP).
 * **SERVER**: Apache 2 or NGINX.
 * **RAM**: 3 GB or higher.
-* **PHP**: 7.2 or higher.
+* **PHP**: 7.2 or higher and less than 8.
 * **Processor**: Clock Cycle 1 Ghz or higher.
 * **For MySQL users**: 5.7.23 or higher.
-* **Composer**: 1.6.5 or higher.
+* **Composer**: 1.6.5 or higher and less than 2.
 * **PHP IMAP** **&** **PHP Mailparse** for [Ubuntu][7], [Windows][23], [Centos][28], [Mac][27].
 
 Installation
@@ -147,6 +149,24 @@ $ php bin/console uvdesk:configure-helpdesk
 ```
 
 #### Using Web Installer Wizard
+
+##### Extract the contents of zip and execute the project in your browser in case of project zip download:
+
+~~~
+http(s)://localhost/community-skeleton/public
+~~~
+
+##### In case of created project using command, execute the project in your browser:
+
+~~~
+http(s)://localhost/helpdesk-project/public
+~~~
+
+or
+
+~~~
+http(s)://example.com/public
+~~~
 
 After opening your project in the web browser, you will be greeted by the web installer which will guide you in configuring your project.
 
